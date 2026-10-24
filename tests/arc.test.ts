@@ -103,6 +103,22 @@ describe("approveUsdcOnArc", () => {
     ]);
   });
 
+  it("submits the approve transaction when existing allowance is insufficient or zero", async () => {
+    const { signer, writeContract } = makeSigner();
+    readContract.mockResolvedValueOnce(0n);
+
+    const hashZero = await approveUsdcOnArc(signer, 10_000_000n, "testnet");
+    expect(hashZero).toBe(FAKE_HASH);
+    expect(writeContract).toHaveBeenCalledTimes(1);
+
+    writeContract.mockClear();
+    readContract.mockResolvedValueOnce(5_000_000n);
+    const hashInsufficient = await approveUsdcOnArc(signer, 10_000_000n, "testnet");
+    expect(hashInsufficient).toBe(FAKE_HASH);
+    expect(writeContract).toHaveBeenCalledTimes(1);
+  });
+
+
   it("fails closed and submits the exact-amount approve when the allowance read fails", async () => {
     const { signer, writeContract } = makeSigner();
     readContract.mockRejectedValueOnce(new Error("RPC read failure"));
