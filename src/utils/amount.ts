@@ -39,10 +39,16 @@ export function significantDecimals(amount: string): number {
  * Rejects an amount whose significant decimal precision exceeds what the destination
  * chain's USDC supports, before any approve or burn is submitted.
  */
-export function assertDestinationPrecision(amount: string, destination: ChainId): void {
+export function assertAmountFitsDestination(amount: string, destination: ChainId, source?: ChainId): void {
   const precision = significantDecimals(amount);
   const supportedDecimals = decimalsForChain(destination);
   if (precision > supportedDecimals) {
-    throw new AmountPrecisionError(amount, precision, supportedDecimals, destination);
+    throw new AmountPrecisionError(amount, precision, supportedDecimals, destination, source);
   }
 }
+
+/**
+ * Alias for assertAmountFitsDestination.
+ */
+export const assertDestinationPrecision = assertAmountFitsDestination;
+

@@ -5,6 +5,7 @@ import {
   toRawAmount,
   fromRawAmount,
   significantDecimals,
+  assertAmountFitsDestination,
   assertDestinationPrecision,
 } from "../src/utils/amount.js";
 import { ARC_TESTNET, STELLAR_TESTNET } from "../src/constants.js";
@@ -89,3 +90,60 @@ describe("significantDecimals and assertDestinationPrecision", () => {
     expect(() => assertDestinationPrecision("1.1234567", "stellar")).not.toThrow();
   });
 });
+
+describe("assertAmountFitsDestination bidirectional and edge-case validation", () => {
+  it("validates Stellar -> Arc transfers (6 decimals max)", () => {
+    // 0 decimals
+    expect(() => assertAmountFitsDestination("100", "arc", "stellar")).not.toThrow();
+    // exactly 6 decimals
+    expect(() => assertAmountFitsDestination("100.123456", "arc", "stellar")).not.toThrow();
+    // trailing zeros over 6 decimals
+    expect(() => assertAmountFitsDestination("100.123456000", "arc", "stellar")).not.toThrow();
+
+    // 7 decimals fails
+    expect(() => assertAmountFitsDestination("100.1234567", "arc", "stellar")).toThrow(AmountPrecisionError);
+    try {
+      assertAmountFitsDestination("100.1234567", "arc", "stellar");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AmountPrecisionError);
+      expect(err).toMatchObject({
+        name: "AmountPrecisionError",
+        amount: "100.1234567",
+        precision: 7,
+        supportedDecimals: 6,
+        destination: "arc",
+        source: "stellar",
+      });
+      expect((err as Error).message).toContain("transferring from stellar to arc");
+    }
+  });
+
+  it("validates Arc -> Stellar transfers (7 decimals max)", () => {
+    // 0 decimals
+    expect(() => assertAmountFitsDestination("50", "stellar", "arc")).not.toThrow();
+    // 6 decimals
+    expect(() => assertAmountFitsDestination("50.123456", "stellar", "arc")).not.toThrow();
+    // exactly 7 decimals
+    expect(() => assertAmountFitsDestination("50.1234567", "stellar", "arc")).not.toThrow();
+    // trailing zeros over 7 decimals
+    expect(() => assertAmountFitsDestination("50.123456700", "stellar", "arc")).not.toThrow();
+
+    // 8 decimals fails
+    expect(() => assertAmountFitsDestination("50.12345678", "stellar", "arc")).toThrow(AmountPrecisionError);
+    try {
+      assertAmountFitsDestination("50.12345678", "stellar", "arc");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AmountPrecisionError);
+      expect(err).toMatchObject({
+        name: "AmountPrecisionError",
+        amount: "50.12345678",
+        precision: 8,
+        supportedDecimals: 7,
+        destination: "stellar",
+        source: "arc",
+      });
+      expect((err as Error).message).toContain("transferring from arc to stellar");
+    }
+  });
+});
+

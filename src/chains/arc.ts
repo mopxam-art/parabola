@@ -146,14 +146,24 @@ async function writeAndWait(
 }
 
 /**
- * Reads the current USDC allowance granted by `owner` to TokenMessengerV2 on Arc.
+ * Reads the current USDC allowance granted by `signerOrOwner` to TokenMessengerV2 on Arc.
  * Returns 0n if the read fails so callers fail closed and still submit the exact-amount approve.
  */
 export async function getUsdcAllowanceOnArc(
-  owner: Hex,
+  signerOrOwner: ArcSigner | Hex,
   network: Network,
   rpcUrl?: string,
 ): Promise<bigint> {
+  let owner: Hex;
+  if (typeof signerOrOwner === "string") {
+    owner = signerOrOwner;
+  } else {
+    const account = signerOrOwner.walletClient.account;
+    if (!account) {
+      throw new Error("ArcSigner's walletClient must have an account attached");
+    }
+    owner = account.address;
+  }
   const arc = arcConfig(network);
   try {
     return await publicClient(network, rpcUrl).readContract({
@@ -197,31 +207,6 @@ export async function approveUsdcOnArc(
     network,
     rpcUrl,
   );
-}
-
-/** Reads the current USDC allowance granted to TokenMessengerV2 by the signer or owner address. */
-export async function getUsdcAllowanceOnArc(
-  signerOrOwner: ArcSigner | Hex,
-  network: Network,
-  rpcUrl?: string,
-): Promise<bigint> {
-  let owner: Hex;
-  if (typeof signerOrOwner === "string") {
-    owner = signerOrOwner;
-  } else {
-    const account = signerOrOwner.walletClient.account;
-    if (!account) {
-      throw new Error("ArcSigner's walletClient must have an account attached");
-    }
-    owner = account.address;
-  }
-  const arc = arcConfig(network);
-  return publicClient(network, rpcUrl).readContract({
-    address: arc.usdc as Hex,
-    abi: erc20Abi,
-    functionName: "allowance",
-    args: [owner, arc.tokenMessengerV2 as Hex],
-  });
 }
 
 /** Burns USDC on Arc via TokenMessengerV2.depositForBurn for a plain (non-Stellar) destination. */

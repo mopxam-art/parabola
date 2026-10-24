@@ -121,7 +121,7 @@ describe("transfer (Arc -> Stellar)", () => {
     });
 
     expect(result.status).toBe("pending");
-    expect(approveUsdcOnStellar).toHaveBeenCalledWith(11_230_000n, stellarSigner, "mainnet", undefined);
+    expect(approveUsdcOnStellar).toHaveBeenCalledWith(11_230_000n, stellarSigner, "mainnet", undefined, undefined);
     expect(burnUsdcOnStellar).toHaveBeenCalledTimes(1);
   });
 
@@ -839,8 +839,21 @@ describe("transfer destination precision pre-flight check", () => {
     expect(burnUsdcOnStellar).toHaveBeenCalledTimes(1);
   });
 
-  it("accepts Arc -> Stellar amounts with up to 6 decimal places", async () => {
-    const result = await transfer({
+  it("accepts Arc -> Stellar amounts with 0 and up to 6 decimal places", async () => {
+    // 0 decimals
+    const res0 = await transfer({
+      from: "arc",
+      to: "stellar",
+      amount: "100",
+      recipient: "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+      speed: "standard",
+      signer: arcSigner,
+      options: { destinationSigner: stellarSigner },
+    });
+    expect(res0.status).toBe("success");
+
+    // 6 decimals
+    const res6 = await transfer({
       from: "arc",
       to: "stellar",
       amount: "1.123456",
@@ -849,9 +862,30 @@ describe("transfer destination precision pre-flight check", () => {
       signer: arcSigner,
       options: { destinationSigner: stellarSigner },
     });
-
-    expect(result.status).toBe("success");
+    expect(res6.status).toBe("success");
     expect(approveUsdcOnArc).toHaveBeenCalledWith(arcSigner, 1_123_456n, "mainnet", undefined);
-    expect(burnUsdcOnArcWithStellarForward).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects Arc -> Stellar amounts exceeding 7 decimals before approve or burn", async () => {
+    const err = await transfer({
+      from: "arc",
+      to: "stellar",
+      amount: "1.12345678",
+      recipient: "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+      speed: "standard",
+      signer: arcSigner,
+      options: { destinationSigner: stellarSigner },
+    }).catch((caught: unknown) => caught);
+
+    expect(err).toBeInstanceOf(AmountPrecisionError);
+    expect(err).toMatchObject({
+      amount: "1.12345678",
+      precision: 8,
+      supportedDecimals: 7,
+      destination: "stellar",
+      source: "arc",
+    });
+    expect(approveUsdcOnArc).not.toHaveBeenCalled();
+    expect(burnUsdcOnArcWithStellarForward).not.toHaveBeenCalled();
   });
 });
